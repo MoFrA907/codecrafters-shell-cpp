@@ -12,7 +12,7 @@ int main() {
     std::cout << "$ ";
     if (!std::getline(std::cin, input)) break;
     if ( input.starts_with("echo") && input.length() > 4) {
-      std::cout<< input.substr(4);
+      std::cout<< input.substr(5);
       continue;
     }
     if (input == "exit") {break;}
