@@ -7,9 +7,9 @@ int main() {
   std::cerr << std::unitbuf;
 
   // TODO: Uncomment the code below to pass the first stage
-  std::cout << "$ ";
   std::string input;
     while (true) {
+      std::cout << "$ ";
       std::cin>>input;
       std::cout<<  input << ": command not found";
     }
