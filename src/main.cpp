@@ -15,7 +15,7 @@ int main() {
       break;
     if ( input.starts_with("echo") && input.length() > 4) {
       std::cout<< input.substr(5)<<std::endl;
-    } else if (input.start_with("type")) {
+    } else if (input.starts_with("type")) {
       std::string s = input.substr(5);
         if (s == "echo" || s == "exit" || s == "type") {
           std::cout<< s <<" is a shell builtin"<<std::endl;
