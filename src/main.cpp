@@ -13,9 +13,9 @@ int main() {
       std::cin>>input;
       if ( input.starts_with("echo") ) {
         std::cout<< input.substr(4);
+        continue;
       }
       if (input == "exit") {break;}
       std::cout<<  input << ": command not found\n";
-
     }
 }
