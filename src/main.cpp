@@ -12,8 +12,8 @@ int main() {
     std::cout << "$ ";
     if (!std::getline(std::cin, input)) break;
     if ( input.starts_with("echo") && input.length() > 4) {
-      std::cout<< input.substr(5);
-      continue;
+      std::cout<< input.substr(5)<<std::endl;
+      break;
     }
     if (input == "exit") {break;}
     std::cout<<  input << ": command not found\n";
