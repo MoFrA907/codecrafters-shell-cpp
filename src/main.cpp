@@ -93,9 +93,7 @@ int main()
                 if (target == "~") {
                     if (const char* homeDir = std::getenv("HOME"); homeDir != nullptr) {
                         std::filesystem::current_path(homeDir);
-                    } else {
-                        std::cerr << "Error: HOME environment variable not set.\n";
-                    }
+                        continue;
                 }
                 std::filesystem::current_path(target);
                 continue;
