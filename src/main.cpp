@@ -4,6 +4,7 @@
 #include <vector>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <filesystem>
 std::vector<std::string> tokenize(const std::string &input) {
   std::vector<std::string> tokens;
   std::stringstream iss(input);
@@ -33,7 +34,9 @@ std::string find_in_path(const std::string &name)
   }
   return "";
 }
-
+void retrieve_path() {
+    std::cout<<std::filesystem::current_path();
+}
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path) {
     pid_t pid = fork();
     if ( pid < 0 ) {
@@ -70,7 +73,7 @@ int main()
 
         if (input == "exit")
             break;
-
+        if ( input == "pwd"){ retrieve_path(); continue;}
         if (input.starts_with("echo") && input.length() > 4)
         {
             std::cout << input.substr(5) << std::endl;
@@ -92,8 +95,7 @@ int main()
                     std::cout << s << ": not found" << std::endl;
             }
         }
-        else
-        {
+        else {
             // ---- NEW: handle external programs ----
             std::vector<std::string> tokens = tokenize(input);
             if (tokens.empty())
