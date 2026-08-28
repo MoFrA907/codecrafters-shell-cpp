@@ -77,16 +77,21 @@ int main()
         if ( input == "pwd") { retrieve_path(); continue;}
 
         if (input.starts_with("cd")) {
+
             std::vector<std::string> tokens = tokenize(input);
+
             if (tokens.size() < 2) { std::cerr<<"cd: missing argument\n";}
+
             if (std::string target = tokens[1]; !std::filesystem::exists(target)
                 || !std::filesystem::is_directory(target)) {
 
                 std::cout<<"cd: "<<target<<"<directory>: No such file or directory\n";
+                continue;
 
             }
             else {
                 std::filesystem::current_path(target);
+                continue;
             }
         }
 
