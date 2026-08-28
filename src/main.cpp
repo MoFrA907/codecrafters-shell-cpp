@@ -35,7 +35,7 @@ std::string find_in_path(const std::string &name)
   return "";
 }
 void retrieve_path() {
-    std::cout<<std::filesystem::current_path()<<std::endl;
+    std::cout<<std::filesystem::current_path().string()<<std::endl;
 }
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path) {
     pid_t pid = fork();
