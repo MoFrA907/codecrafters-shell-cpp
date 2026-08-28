@@ -90,6 +90,13 @@ int main()
 
             }
             else {
+                if (target == "~") {
+                    if (const char* homeDir = std::getenv("HOME"); homeDir != nullptr) {
+                        std::filesystem::current_path(homeDir);
+                    } else {
+                        std::cerr << "Error: HOME environment variable not set.\n";
+                    }
+                }
                 std::filesystem::current_path(target);
                 continue;
             }
@@ -117,10 +124,10 @@ int main()
             }
         }
         else {
-            // ---- NEW: handle external programs ----
+            // handle external programs
             std::vector<std::string> tokens = tokenize(input);
             if (tokens.empty())
-                continue;   // empty input, just re-prompt
+                continue;   // empty
 
             std::string path = find_in_path(tokens[0]);
 
