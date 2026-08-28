@@ -73,7 +73,7 @@ int main()
 
         if (input == "exit")
             break;
-        if ( input == "pwd"){ retrieve_path(); continue;}
+        if ( input == "pwd") { retrieve_path(); continue;}
         if (input.starts_with("echo") && input.length() > 4)
         {
             std::cout << input.substr(5) << std::endl;
@@ -82,7 +82,7 @@ int main()
         {
             std::string s = input.substr(5);
 
-            if (s == "echo" || s == "exit" || s == "type")
+            if (s == "echo" || s == "exit" || s == "type" || s == "pwd")
             {
                 std::cout << s << " is a shell builtin" << std::endl;
             }
