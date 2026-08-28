@@ -73,7 +73,23 @@ int main()
 
         if (input == "exit")
             break;
+
         if ( input == "pwd") { retrieve_path(); continue;}
+
+        if (input.starts_with("cd")) {
+            std::vector<std::string> tokens = tokenize(input);
+            if (tokens.size() < 2) { std::cerr<<"cd: missing argument\n";}
+            if (std::string target = tokens[1]; !std::filesystem::exists(target)
+                || !std::filesystem::is_directory(target)) {
+
+                std::cout<<"cd: "<<target<<"<directory>: No such file or directory\n";
+
+            }
+            else {
+                std::filesystem::current_path(target);
+            }
+        }
+
         if (input.starts_with("echo") && input.length() > 4)
         {
             std::cout << input.substr(5) << std::endl;
@@ -82,7 +98,7 @@ int main()
         {
             std::string s = input.substr(5);
 
-            if (s == "echo" || s == "exit" || s == "type" || s == "pwd")
+            if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
             {
                 std::cout << s << " is a shell builtin" << std::endl;
             }
