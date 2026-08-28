@@ -60,80 +60,94 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
 
 int main()
 {
-    std::cout << std::unitbuf;   // flush cout immediately after every write
-    std::cerr << std::unitbuf;   // same for cerr
+    std::cout << std::unitbuf;
+    std::cerr << std::unitbuf;
 
     std::string input;
 
-    while (true) {
+    while (true)
+    {
         std::cout << "$ ";
         if (!std::getline(std::cin, input))
-            break;   // Ctrl+D / end of input
+            break;
 
         if (input == "exit")
             break;
 
-        if ( input == "pwd") { retrieve_path(); continue;}
+        if (input == "pwd")
+        {
+            retrieve_path();
+            continue;
+        }
 
-        if (input.starts_with("cd")) {
-
+        if (input.starts_with("cd"))
+        {
             std::vector<std::string> tokens = tokenize(input);
 
-            if (tokens.size() < 2) { std::cerr<<"cd: missing argument\n";}
-
-            if (std::string target = tokens[1]; !std::filesystem::exists(target)
-                || !std::filesystem::is_directory(target)) {
-
-                std::cout<<"cd: "<<target<<": No such file or directory\n";
+            if (tokens.size() < 2)
+            {
+                std::cerr << "cd: missing argument\n";
                 continue;
+            }
 
-                }
-            else {
-                if (target == "~") {
-                    if (const char* homeDir = std::getenv("HOME"); homeDir != nullptr) {
-                        std::filesystem::current_path(homeDir);
-                        continue;
-                    }
-                    std::filesystem::current_path(target);
+            std::string target = tokens[1];
+
+            if (target == "~")
+            {
+                const char *home = std::getenv("HOME");
+                if (home)
+                    target = home;
+                else
+                {
+                    std::cerr << "cd: HOME not set\n";
                     continue;
                 }
             }
 
-            if (input.starts_with("echo") && input.length() > 4)
+            if (!std::filesystem::exists(target) || !std::filesystem::is_directory(target))
             {
-                std::cout << input.substr(5) << std::endl;
+                std::cout << "cd: " << target << ": No such file or directory\n";
             }
-            else if (input.starts_with("type"))
+            else
             {
-                std::string s = input.substr(5);
-
-                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
-                {
-                    std::cout << s << " is a shell builtin" << std::endl;
-                }
-                else
-                {
-                    std::string path = find_in_path(s);
-                    if (!path.empty())
-                        std::cout << s << " is " << path << "\n";
-                    else
-                        std::cout << s << ": not found" << std::endl;
-                }
+                std::filesystem::current_path(target);
             }
-            else {
-                // handle external programs
-                if (tokens.empty())
-                    continue;   // empty
-
-                std::string path = find_in_path(tokens[0]);
-
-                if (!path.empty())
-                    run_external(tokens, path);
-                else
-                    std::cout << input << ": command not found\n";
-            }
+            continue;   // <-- makes sure we don't fall through to echo/type/external below
         }
 
-        return 0;
+        if (input.starts_with("echo") && input.length() > 4)
+        {
+            std::cout << input.substr(5) << std::endl;
+        }
+        else if (input.starts_with("type"))
+        {
+            std::string s = input.substr(5);
+
+            if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
+            {
+                std::cout << s << " is a shell builtin" << std::endl;
+            }
+            else
+            {
+                std::string path = find_in_path(s);
+                if (!path.empty())
+                    std::cout << s << " is " << path << "\n";
+                else
+                    std::cout << s << ": not found" << std::endl;
+            }
+        }
+        else
+        {
+            std::vector<std::string> tokens = tokenize(input);
+            if (tokens.empty())
+                continue;
+
+            std::string path = find_in_path(tokens[0]);
+            if (!path.empty())
+                run_external(tokens, path);
+            else
+                std::cout << input << ": command not found\n";
+        }
     }
+    return 0;
 }
