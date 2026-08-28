@@ -5,15 +5,31 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <filesystem>
-std::vector<std::string> tokenize(const std::string &input) {
-  std::vector<std::string> tokens;
-  std::stringstream iss(input);
-  std::string word;
-  while ( iss >> word ) {
-      tokens.push_back(word);
-  }
-  return tokens;
+std::vector<std::string> parse_input(const std::string &input) {
+    std::vector<std::string> tokens;
+    std::string current;       // the token currently being built
+    bool in_single_quotes = false;
+    bool has_content = false;
+    for (size_t i{0} ; i < input.size() ; ++i) {
+            char c = input[i];
+        if (c=='\''){
+            in_single_quotes = !in_single_quotes;
+            has_content = true;
+        } else if (c == ' ' && !in_single_quotes) {
+            tokens.push_back(current);
+            current.clear();
+            has_content =false;
+        } else {
+            current+=c;
+            has_content = true;
+        }
+    }
+    if (has_content) {
+        tokens.push_back(current);
+    }
+    return tokens;
 }
+
 std::string find_in_path(const std::string &name)
 {
   const char *path_var = std::getenv("PATH");
@@ -74,16 +90,18 @@ int main()
         if (input == "exit")
             break;
 
-        if (input == "pwd")
+        std::vector<std::string> tokens = parse_input(input);
+        if (tokens.empty())
+            continue;   // empty input, just re-prompt
+
+        std::string &cmd = tokens[0];
+
+        if (cmd == "pwd")
         {
             retrieve_path();
-            continue;
         }
-
-        if (input.starts_with("cd"))
+        else if (cmd == "cd")
         {
-            std::vector<std::string> tokens = tokenize(input);
-
             if (tokens.size() < 2)
             {
                 std::cerr << "cd: missing argument\n";
@@ -94,34 +112,33 @@ int main()
 
             if (target == "~")
             {
-                const char *home = std::getenv("HOME");
-                if (home)
-                    target = home;
-                else
-                {
-                    std::cerr << "cd: HOME not set\n";
-                    continue;
-                }
+                if (const char *home = std::getenv("HOME")) target = home;
+                else { std::cerr << "cd: HOME not set\n"; continue; }
             }
 
             if (!std::filesystem::exists(target) || !std::filesystem::is_directory(target))
-            {
                 std::cout << "cd: " << target << ": No such file or directory\n";
-            }
             else
-            {
                 std::filesystem::current_path(target);
+        }
+        else if (cmd == "echo")
+        {
+            std::string output;
+            for (size_t i = 1; i < tokens.size(); i++)
+            {
+                if (i > 1) output += " ";
+                output += tokens[i];
             }
-            continue;   // <-- makes sure we don't fall through to echo/type/external below
+            std::cout << output << "\n";
         }
-
-        if (input.starts_with("echo") && input.length() > 4)
+        else if (cmd == "type")
         {
-            std::cout << input.substr(5) << std::endl;
-        }
-        else if (input.starts_with("type"))
-        {
-            std::string s = input.substr(5);
+            if (tokens.size() < 2)
+            {
+                std::cerr << "type: missing argument\n";
+                continue;
+            }
+            std::string s = tokens[1];
 
             if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
             {
@@ -138,11 +155,7 @@ int main()
         }
         else
         {
-            std::vector<std::string> tokens = tokenize(input);
-            if (tokens.empty())
-                continue;
-
-            std::string path = find_in_path(tokens[0]);
+            std::string path = find_in_path(cmd);
             if (!path.empty())
                 run_external(tokens, path);
             else
