@@ -16,9 +16,11 @@ std::vector<std::string> parse_input(const std::string &input) {
             in_single_quotes = !in_single_quotes;
             has_content = true;
         } else if (c == ' ' && !in_single_quotes) {
-            tokens.push_back(current);
-            current.clear();
-            has_content =false;
+            if (has_content) {
+                tokens.push_back(current);
+                current.clear();
+                has_content = false;
+            }
         } else {
             current+=c;
             has_content = true;
@@ -112,7 +114,8 @@ int main()
 
             if (target == "~")
             {
-                if (const char *home = std::getenv("HOME")) target = home;
+                const char *home = std::getenv("HOME");
+                if (home) target = home;
                 else { std::cerr << "cd: HOME not set\n"; continue; }
             }
 
