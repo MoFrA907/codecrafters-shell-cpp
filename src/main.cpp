@@ -85,7 +85,7 @@ int main()
             if (std::string target = tokens[1]; !std::filesystem::exists(target)
                 || !std::filesystem::is_directory(target)) {
 
-                std::cout<<"cd: "<<target<<"<directory>: No such file or directory\n";
+                std::cout<<"cd: "<<target<<": No such file or directory\n";
                 continue;
 
             }
