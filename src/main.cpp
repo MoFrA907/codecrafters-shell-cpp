@@ -88,24 +88,34 @@ std::string find_in_path(const std::string &name)
   return "";
 }
 
-// A single redirect: which fd to point (1 = stdout, 2 = stderr) and to which file.
+// A single redirect: which fd to point (1 = stdout, 2 = stderr), to which file,
+// and whether to append instead of truncate.
 struct Redirect {
     int target_fd;
     std::string file;
+    bool append;
 };
 
-// Scans tokens for ">", "1>", "2>" and strips them (plus their filename) out of tokens.
-// Returns all redirects found, in the order they appeared. On syntax error, clears
-// tokens and returns whatever was parsed so far (caller should bail on empty tokens).
+// Scans tokens for ">", "1>", "2>", ">>", "1>>", "2>>" and strips them (plus their
+// filename) out of tokens. Returns all redirects found, in the order they appeared.
+// On syntax error, clears tokens and returns whatever was parsed so far (caller
+// should bail on empty tokens).
 std::vector<Redirect> extract_redirects(std::vector<std::string> &tokens) {
     std::vector<Redirect> redirects;
 
     for (size_t i = 0; i < tokens.size(); /* no auto-increment */) {
         int target_fd = -1;
+        bool append = false;
         if (tokens[i] == ">" || tokens[i] == "1>") {
             target_fd = 1;
         } else if (tokens[i] == "2>") {
             target_fd = 2;
+        } else if (tokens[i] == ">>" || tokens[i] == "1>>") {
+            target_fd = 1;
+            append = true;
+        } else if (tokens[i] == "2>>") {
+            target_fd = 2;
+            append = true;
         }
 
         if (target_fd == -1) {
@@ -120,7 +130,7 @@ std::vector<Redirect> extract_redirects(std::vector<std::string> &tokens) {
             return redirects;
         }
 
-        redirects.push_back({target_fd, tokens[i + 1]});
+        redirects.push_back({target_fd, tokens[i + 1], append});
         tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
         // don't increment i: the erase shifted the next token into position i
     }
@@ -141,7 +151,8 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
     }
     if (pid == 0) {
         for (const auto &r : redirects) {
-            int fd = open(r.file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            int flags = O_WRONLY | O_CREAT | (r.append ? O_APPEND : O_TRUNC);
+            int fd = open(r.file.c_str(), flags, 0644);
             if (fd == -1) { perror("open"); exit(1); }
             dup2(fd, r.target_fd);
             close(fd);
@@ -181,18 +192,18 @@ int main()
         if (tokens.empty())
             continue;   // empty input, just re-prompt
 
-        // split off '>' / '1>' / '2>' + filename before dispatching
+        // split'>' / '1>' / '2>' + filename before dispatching
         std::vector<Redirect> redirects = extract_redirects(tokens);
         if (tokens.empty())
-            continue;   // syntax error already printed inside extract_redirects, or truly empty
+            continue;   // syntax error already printed
 
-        // if a builtin needs redirect(s), save the fds we're about to clobber, point them at files
         bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type");
         std::vector<std::pair<int,int>> saved_fds; // (fd_number, saved_dup)
         if (builtin_cmd && !redirects.empty()) {
             bool open_failed = false;
             for (const auto &r : redirects) {
-                int redirect_fd = open(r.file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                int flags = O_WRONLY | O_CREAT | (r.append ? O_APPEND : O_TRUNC);
+                int redirect_fd = open(r.file.c_str(), flags, 0644);
                 if (redirect_fd == -1) {
                     perror("open");
                     open_failed = true;
