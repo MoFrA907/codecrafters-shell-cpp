@@ -275,6 +275,7 @@ int main()
                            << status_field
                            << job.command << " &" << "\n";
             }
+            continue;
         }
         if (cmd == "pwd")
         {
