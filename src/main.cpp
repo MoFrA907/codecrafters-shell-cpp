@@ -225,6 +225,8 @@ int main()
 
         std::string &cmd = tokens[0];
 
+        if (cmd == "jobs") continue;
+
         if (cmd == "pwd")
         {
             retrieve_path();
