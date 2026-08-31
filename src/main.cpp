@@ -190,8 +190,7 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
   }
 
 
-int main()
-{
+int main() {
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
 
@@ -369,3 +368,4 @@ int main()
         }
     }
     return 0;
+}
