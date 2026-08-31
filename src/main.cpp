@@ -186,7 +186,7 @@ void reap_jobs() {
 
         int status;
         pid_t result = waitpid(job.pid, &status, WNOHANG);
-        if (result == job.pid && WIFEXITED(status)) {
+        if (result == job.pid && (WIFEXITED(status) || WIFSIGNALED(status))) {
             job.status = "Done";
             print_job_line(job, job_marker(i, n));
         }
@@ -196,6 +196,10 @@ void reap_jobs() {
         std::remove_if(jobs_list.begin(), jobs_list.end(),
             [](const Job &j) { return j.status == "Done"; }),
         jobs_list.end());
+
+    if (jobs_list.empty()) {
+        next_job_number = 1;
+    }
 }
 
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
