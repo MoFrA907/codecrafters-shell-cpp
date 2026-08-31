@@ -152,6 +152,52 @@ void retrieve_path() {
     std::cout << std::filesystem::current_path().string() << std::endl;
 }
 
+// Computes this job's marker ('+' for most recent, '-' for second most recent,
+// ' ' otherwise) based on its position i within a list of size n.
+char job_marker(size_t i, size_t n) {
+    if (n >= 1 && i == n - 1) return '+';
+    if (n >= 2 && i == n - 2) return '-';
+    return ' ';
+}
+
+void print_job_line(const Job &job, char marker) {
+    std::string status_field = job.status;
+    if (status_field.size() < 24)
+        status_field += std::string(24 - status_field.size(), ' ');
+
+    std::cout << "[" << job.job_number << "]" << marker << "  "
+               << status_field
+               << job.command;
+    if (job.status == "Running")
+        std::cout << " &";
+    std::cout << "\n";
+}
+
+// Shared reaping logic used both automatically before each prompt and inside
+// the `jobs` builtin. Checks every job with WNOHANG, prints a Done line for
+// any job that just finished (marker computed against the list as it stood
+// before removal), then removes reaped jobs from jobs_list.
+void reap_jobs() {
+    size_t n = jobs_list.size();
+    for (size_t i = 0; i < n; ++i) {
+        Job &job = jobs_list[i];
+        if (job.status != "Running")
+            continue;
+
+        int status;
+        pid_t result = waitpid(job.pid, &status, WNOHANG);
+        if (result == job.pid && WIFEXITED(status)) {
+            job.status = "Done";
+            print_job_line(job, job_marker(i, n));
+        }
+    }
+
+    jobs_list.erase(
+        std::remove_if(jobs_list.begin(), jobs_list.end(),
+            [](const Job &j) { return j.status == "Done"; }),
+        jobs_list.end());
+}
+
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
                    const std::vector<Redirect> &redirects, bool is_background,
                    const std::string &job_command) {
@@ -200,6 +246,7 @@ int main()
 
     while (true)
     {
+        reap_jobs();   // auto-reap: print any newly-finished jobs before showing the prompt
         std::cout << "$ ";
         if (!std::getline(std::cin, input))
             break;
@@ -259,42 +306,13 @@ int main()
 
         if (cmd == "jobs")
         {
-            // reap: check each job's PID without blocking
-            for (auto &job : jobs_list)
-            {
-                int status;
-                pid_t result = waitpid(job.pid, &status, WNOHANG);
-                if (result == job.pid && WIFEXITED(status)) {
-                    job.status = "Done";
-                }
-            }
+            reap_jobs();
 
             size_t n = jobs_list.size();
             for (size_t i = 0; i < n; ++i)
             {
-                const auto &job = jobs_list[i];
-
-                char marker = ' ';
-                if (n >= 1 && i == n - 1) marker = '+';
-                else if (n >= 2 && i == n - 2) marker = '-';
-
-                std::string status_field = job.status;
-                if (status_field.size() < 24)
-                    status_field += std::string(24 - status_field.size(), ' ');
-
-                std::cout << "[" << job.job_number << "]" << marker << "  "
-                           << status_field
-                           << job.command;
-                if (job.status == "Running")
-                    std::cout << " &";
-                std::cout << "\n";
+                print_job_line(jobs_list[i], job_marker(i, n));
             }
-
-            // remove any jobs we just reported as Done, so they don't show again
-            jobs_list.erase(
-                std::remove_if(jobs_list.begin(), jobs_list.end(),
-                    [](const Job &j) { return j.status == "Done"; }),
-                jobs_list.end());
         }
         else if (cmd == "pwd")
         {
