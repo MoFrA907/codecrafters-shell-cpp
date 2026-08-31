@@ -19,23 +19,24 @@ int next_job_number = 1;
 
 std::vector<std::string> parse_input(const std::string &input) {
     std::vector<std::string> tokens;
-    std::string current;       // the token currently being built
+    std::string current;
     char quote_type = '\0';
     bool has_content = false;
     bool escape_sequence = false;
+
     for (char c : input) {
         if (quote_type == '\0') {
-            if ( escape_sequence ) {
-                current+=c;
+            if (escape_sequence) {
+                current += c;
                 escape_sequence = false;
                 has_content = true;
                 continue;
             }
-            if ( c == '\\' ) {
+            if (c == '\\') {
                 escape_sequence = true;
                 continue;
             }
-            if (c == '\'' or c == '"') {
+            if (c == '\'' || c == '"') {
                 quote_type = c;
                 has_content = true;
             } else if (c == ' ') {
@@ -44,29 +45,27 @@ std::vector<std::string> parse_input(const std::string &input) {
                     current.clear();
                     has_content = false;
                 }
-                // else: skip extra spaces
             } else {
                 current += c;
                 has_content = true;
             }
         } else {
-            // currently INSIDE a quote
-            if ( quote_type == '\"') {
-                if ( escape_sequence ) {
-                    current+=c;
+            if (quote_type == '\"') {
+                if (escape_sequence) {
+                    current += c;
                     escape_sequence = false;
                     has_content = true;
                     continue;
                 }
-                if ( c == '\\' ) {
+                if (c == '\\') {
                     escape_sequence = true;
                     continue;
                 }
             }
-            if (c == quote_type) {          // this is the matching closer
+            if (c == quote_type) {
                 quote_type = '\0';
             } else {
-                current += c;               // literal, even if it's a space or the other quote char
+                current += c;
             }
         }
     }
@@ -77,39 +76,30 @@ std::vector<std::string> parse_input(const std::string &input) {
     return tokens;
 }
 
-std::string find_in_path(const std::string &name)
-{
-  const char *path_var = std::getenv("PATH");
-  if (!path_var)
-    return "";
+std::string find_in_path(const std::string &name) {
+    const char *path_var = std::getenv("PATH");
+    if (!path_var)
+        return "";
 
-  std::istringstream path_stream(path_var);
-  std::string dir;
+    std::istringstream path_stream(path_var);
+    std::string dir;
 
-  while (std::getline(path_stream, dir, ':'))
-  {
-    std::string file_path = dir + "/" + name;
-    if (access(file_path.c_str(), F_OK) == 0 &&
-        access(file_path.c_str(), X_OK) == 0)
-    {
-      return file_path;
+    while (std::getline(path_stream, dir, ':')) {
+        std::string file_path = dir + "/" + name;
+        if (access(file_path.c_str(), F_OK) == 0 &&
+            access(file_path.c_str(), X_OK) == 0) {
+            return file_path;
+        }
     }
-  }
-  return "";
+    return "";
 }
 
-// A single redirect: which fd to point (1 = stdout, 2 = stderr), to which file,
-// and whether to append instead of truncate.
 struct Redirect {
     int target_fd;
     std::string file;
     bool append;
 };
 
-// Scans tokens for ">", "1>", "2>", ">>", "1>>", "2>>" and strips them (plus their
-// filename) out of tokens. Returns all redirects found, in the order they appeared.
-// On syntax error, clears tokens and returns whatever was parsed so far (caller
-// should bail on empty tokens).
 std::vector<Redirect> extract_redirects(std::vector<std::string> &tokens) {
     std::vector<Redirect> redirects;
 
@@ -142,7 +132,6 @@ std::vector<Redirect> extract_redirects(std::vector<std::string> &tokens) {
 
         redirects.push_back({target_fd, tokens[i + 1], append});
         tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
-        // don't increment i: the erase shifted the next token into position i
     }
 
     return redirects;
@@ -152,8 +141,6 @@ void retrieve_path() {
     std::cout << std::filesystem::current_path().string() << std::endl;
 }
 
-// Computes this job's marker ('+' for most recent, '-' for second most recent,
-// ' ' otherwise) based on its position i within a list of size n.
 char job_marker(size_t i, size_t n) {
     if (n >= 1 && i == n - 1) return '+';
     if (n >= 2 && i == n - 2) return '-';
@@ -166,21 +153,17 @@ void print_job_line(const Job &job, char marker) {
         status_field += std::string(24 - status_field.size(), ' ');
 
     std::cout << "[" << job.job_number << "]" << marker << "  "
-               << status_field
-               << job.command;
+              << status_field
+              << job.command;
     if (job.status == "Running")
         std::cout << " &";
     std::cout << "\n";
 }
 
-// Shared reaping logic used both automatically before each prompt and inside
-// the `jobs` builtin. Checks every job with WNOHANG, prints a Done line for
-// any job that just finished (marker computed against the list as it stood
-// before removal), then removes reaped jobs from jobs_list.
 void reap_jobs() {
     size_t n = jobs_list.size();
 
-    // First, mark finished jobs and print their "Done" status
+    // First pass: mark completed processes and display "Done" with original relative index
     for (size_t i = 0; i < n; ++i) {
         Job &job = jobs_list[i];
         if (job.status != "Running")
@@ -194,7 +177,7 @@ void reap_jobs() {
         }
     }
 
-    // Second, erase finished jobs so jobs_list contains ONLY active jobs
+    // Second pass: remove reaped jobs from the tracking vector
     jobs_list.erase(
         std::remove_if(jobs_list.begin(), jobs_list.end(),
             [](const Job &j) { return j.status == "Done"; }),
@@ -204,11 +187,12 @@ void reap_jobs() {
         next_job_number = 1;
     }
 }
+
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
                    const std::vector<Redirect> &redirects, bool is_background,
                    const std::string &job_command) {
     pid_t pid = fork();
-    if ( pid < 0 ) {
+    if (pid < 0) {
         perror("fork");
         return;
     }
@@ -224,35 +208,33 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
 
         std::vector<char*> args;
         for (const auto &token : tokens) {
-          args.push_back(const_cast<char*>(token.c_str()));
+            args.push_back(const_cast<char*>(token.c_str()));
         }
         args.push_back(nullptr);
 
-        execvp(full_path.c_str() ,args.data());
+        execvp(full_path.c_str(), args.data());
         std::cerr << tokens[0] << ": command not found\n";
         std::exit(1);
     }
+
     if (is_background) {
         int job_number = next_job_number++;
-        jobs_list.push_back({job_number, pid, job_command , "Running"});
+        jobs_list.push_back({job_number, pid, job_command, "Running"});
         std::cout << "[" << job_number << "] " << pid << std::endl;
     } else {
         int status;
         waitpid(pid, &status, 0);
     }
-  }
+}
 
-
-int main()
-{
+int main() {
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
 
     std::string input;
 
-    while (true)
-    {
-        reap_jobs();   // auto-reap: print any newly-finished jobs before showing the prompt
+    while (true) {
+        reap_jobs();   // Automatic reap before each prompt
         std::cout << "$ ";
         if (!std::getline(std::cin, input))
             break;
@@ -262,19 +244,17 @@ int main()
 
         std::vector<std::string> tokens = parse_input(input);
         if (tokens.empty())
-            continue;   // empty input, just re-prompt
-        // check for background job request
+            continue;
 
-        bool is_background = false ;
+        bool is_background = false;
         if (!tokens.empty() && tokens.back() == "&") {
             is_background = true;
             tokens.pop_back();
         }
 
-        // >' / '1>' / '2>' + filename before dispatching
         std::vector<Redirect> redirects = extract_redirects(tokens);
         if (tokens.empty())
-            continue;   // syntax error already printed
+            continue;
 
         std::string job_command;
         for (size_t i = 0; i < tokens.size(); ++i) {
@@ -283,7 +263,8 @@ int main()
         }
 
         bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type" || tokens[0] == "jobs");
-        std::vector<std::pair<int,int>> saved_fds; // (fd_number, saved_dup)
+        std::vector<std::pair<int,int>> saved_fds;
+
         if (builtin_cmd && !redirects.empty()) {
             bool open_failed = false;
             for (const auto &r : redirects) {
@@ -299,7 +280,6 @@ int main()
                 close(redirect_fd);
             }
             if (open_failed) {
-                // restore anything we already redirected, then skip this command
                 for (auto &sf : saved_fds) {
                     dup2(sf.second, sf.first);
                     close(sf.second);
@@ -310,34 +290,23 @@ int main()
 
         std::string &cmd = tokens[0];
 
-        if (cmd == "jobs")
-        {
-            // 1. Flush/reap finished jobs first
-            reap_jobs();
+        if (cmd == "jobs") {
+            reap_jobs();  // Clear out finished jobs first
 
-            // 2. Print remaining active running jobs with correct indices
-            size_t active_count = jobs_list.size();
-            for (size_t i = 0; i < active_count; ++i)
-            {
-                print_job_line(jobs_list[i], job_marker(i, active_count));
+            // Print active jobs with recalculated markers based on surviving list
+            size_t n = jobs_list.size();
+            for (size_t i = 0; i < n; ++i) {
+                print_job_line(jobs_list[i], job_marker(i, n));
             }
-        }
-        else if (cmd == "pwd")
-        {
+        } else if (cmd == "pwd") {
             retrieve_path();
-        }
-        else if (cmd == "cd")
-        {
-            if (tokens.size() < 2)
-            {
+        } else if (cmd == "cd") {
+            if (tokens.size() < 2) {
                 std::cerr << "cd: missing argument\n";
-            }
-            else
-            {
+            } else {
                 std::string target = tokens[1];
 
-                if (target == "~")
-                {
+                if (target == "~") {
                     const char *home = std::getenv("HOME");
                     if (home) target = home;
                     else { std::cerr << "cd: HOME not set\n"; target.clear(); }
@@ -350,33 +319,22 @@ int main()
                         std::filesystem::current_path(target);
                 }
             }
-        }
-        else if (cmd == "echo")
-        {
+        } else if (cmd == "echo") {
             std::string output;
-            for (size_t i = 1; i < tokens.size(); i++)
-            {
+            for (size_t i = 1; i < tokens.size(); i++) {
                 if (i > 1) output += " ";
                 output += tokens[i];
             }
             std::cout << output << "\n";
-        }
-        else if (cmd == "type")
-        {
-            if (tokens.size() < 2)
-            {
+        } else if (cmd == "type") {
+            if (tokens.size() < 2) {
                 std::cerr << "type: missing argument\n";
-            }
-            else
-            {
+            } else {
                 std::string s = tokens[1];
 
-                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd" || s == "jobs")
-                {
+                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd" || s == "jobs") {
                     std::cout << s << " is a shell builtin" << std::endl;
-                }
-                else
-                {
+                } else {
                     std::string path = find_in_path(s);
                     if (!path.empty())
                         std::cout << s << " is " << path << "\n";
@@ -384,9 +342,7 @@ int main()
                         std::cout << s << ": not found" << std::endl;
                 }
             }
-        }
-        else
-        {
+        } else {
             std::string path = find_in_path(cmd);
             if (!path.empty())
                 run_external(tokens, path, redirects, is_background, job_command);
@@ -394,7 +350,6 @@ int main()
                 std::cout << input << ": command not found\n";
         }
 
-        // restore any redirected fds for builtins
         if (builtin_cmd && !saved_fds.empty()) {
             std::cout.flush();
             std::cerr.flush();
