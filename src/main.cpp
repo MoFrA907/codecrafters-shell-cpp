@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <filesystem>
+#include <algorithm>
 
 struct Job {
     int job_number;
@@ -283,8 +284,17 @@ int main()
 
                 std::cout << "[" << job.job_number << "]" << marker << "  "
                            << status_field
-                           << job.command << " &" << "\n";
+                           << job.command;
+                if (job.status == "Running")
+                    std::cout << " &";
+                std::cout << "\n";
             }
+
+            // remove any jobs we just reported as Done, so they don't show again
+            jobs_list.erase(
+                std::remove_if(jobs_list.begin(), jobs_list.end(),
+                    [](const Job &j) { return j.status == "Done"; }),
+                jobs_list.end());
         }
         else if (cmd == "pwd")
         {
