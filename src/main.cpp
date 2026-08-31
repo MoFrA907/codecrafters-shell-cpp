@@ -265,6 +265,7 @@ int main()
                 }
                 std::cout << "[" << job.job_number << "]+  " << current_status << job.command << " &" << "\n";
             }
+            continue;
         };
 
         if (cmd == "pwd")
