@@ -4,6 +4,7 @@
 #include <vector>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <filesystem>
 std::vector<std::string> parse_input(const std::string &input) {
     std::vector<std::string> tokens;
@@ -88,16 +89,40 @@ std::string find_in_path(const std::string &name)
   }
   return "";
 }
+
+bool extract_redirect(std::vector<std::string> &tokens, std::string &redirect_file) {
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        if (tokens[i] == ">" || tokens[i] == "1>") {
+            if (i + 1 >= tokens.size()) {
+                std::cerr << "syntax error: expected filename after '" << tokens[i] << "'\n";
+                tokens.clear();
+                return false;
+            }
+            redirect_file = tokens[i + 1];
+            tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
+            return true;
+        }
+    }
+    return false;
+}
+
 void retrieve_path() {
     std::cout<<std::filesystem::current_path().string()<<std::endl;
 }
-void run_external(const std::vector<std::string> &tokens, const std::string &full_path) {
+void run_external(const std::vector<std::string> &tokens, const std::string &full_path, const std::string &redirect_file) {
     pid_t pid = fork();
     if ( pid < 0 ) {
         perror("fork");
         return;
     }
     if (pid == 0) {
+        if (!redirect_file.empty()) {
+            int fd = open(redirect_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd == -1) { perror("open"); exit(1); }
+            dup2(fd, 1);
+            close(fd);
+        }
+
         std::vector<char*> args;
         for (const auto &token : tokens) {
           args.push_back(const_cast<char*>(token.c_str()));
@@ -131,6 +156,23 @@ int main()
         std::vector<std::string> tokens = parse_input(input);
         if (tokens.empty())
             continue;   // empty input, just re-prompt
+
+        // NEW: split off '>' / '1>' + filename before dispatching
+        std::string redirect_file;
+        bool has_redirect = extract_redirect(tokens, redirect_file);
+        if (tokens.empty() && has_redirect)
+            continue;   // syntax error already printed inside extract_redirect
+
+        // NEW: if a builtin needs redirect, save fd 1, point it at the file
+        bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type");
+        int saved_stdout = -1, redirect_fd = -1;
+        if (builtin_cmd && has_redirect) {
+            redirect_fd = open(redirect_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (redirect_fd == -1) { perror("open"); continue; }
+            saved_stdout = dup(1);
+            dup2(redirect_fd, 1);
+            close(redirect_fd);
+        }
 
         std::string &cmd = tokens[0];
 
@@ -196,9 +238,16 @@ int main()
         {
             std::string path = find_in_path(cmd);
             if (!path.empty())
-                run_external(tokens, path);
+                run_external(tokens, path, redirect_file);
             else
                 std::cout << input << ": command not found\n";
+        }
+
+        // NEW: restore fd 1 if we redirected a builtin
+        if (builtin_cmd && has_redirect) {
+            std::cout.flush();
+            dup2(saved_stdout, 1);
+            close(saved_stdout);
         }
     }
     return 0;
