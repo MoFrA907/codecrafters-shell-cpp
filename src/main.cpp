@@ -8,27 +8,36 @@
 std::vector<std::string> parse_input(const std::string &input) {
     std::vector<std::string> tokens;
     std::string current;       // the token currently being built
-    bool in_single_quotes = false;
+    char quote_type = '\0';
     bool has_content = false;
-    for (size_t i{0} ; i < input.size() ; ++i) {
-            char c = input[i];
-        if (c=='\''){
-            in_single_quotes = !in_single_quotes;
-            has_content = true;
-        } else if (c == ' ' && !in_single_quotes) {
-            if (has_content) {
-                tokens.push_back(current);
-                current.clear();
-                has_content = false;
+    for (char c : input) {
+        if (quote_type == '\0') {          // NOT currently in a quote
+            if (c == '\'' or c == '"') {
+                quote_type = c;
+                has_content = true;
+            } else if (c == ' ') {
+                if (has_content) {
+                    tokens.push_back(current);
+                    current.clear();
+                    has_content = false;
+                }
+                // else: skip extra spaces
+            } else {
+                current += c;
+                has_content = true;
             }
-        } else {
-            current+=c;
-            has_content = true;
+        } else {                            // currently INSIDE a quote
+            if (c == quote_type) {          // this is the matching closer
+                quote_type = '\0';
+            } else {
+                current += c;               // literal, even if it's a space or the other quote char
+            }
         }
     }
     if (has_content) {
         tokens.push_back(current);
     }
+
     return tokens;
 }
 
