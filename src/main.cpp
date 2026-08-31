@@ -6,13 +6,13 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <filesystem>
+
 std::vector<std::string> parse_input(const std::string &input) {
     std::vector<std::string> tokens;
     std::string current;       // the token currently being built
     char quote_type = '\0';
     bool has_content = false;
     bool escape_sequence = false;
-    int saw_escape_char = 0;
     for (char c : input) {
         if (quote_type == '\0') {
             if ( escape_sequence ) {
@@ -23,7 +23,6 @@ std::vector<std::string> parse_input(const std::string &input) {
             }
             if ( c == '\\' ) {
                 escape_sequence = true;
-
                 continue;
             }
             if (c == '\'' or c == '"') {
@@ -37,7 +36,6 @@ std::vector<std::string> parse_input(const std::string &input) {
                 }
                 // else: skip extra spaces
             } else {
-
                 current += c;
                 has_content = true;
             }
@@ -90,36 +88,62 @@ std::string find_in_path(const std::string &name)
   return "";
 }
 
-bool extract_redirect(std::vector<std::string> &tokens, std::string &redirect_file) {
-    for (size_t i = 0; i < tokens.size(); ++i) {
+// A single redirect: which fd to point (1 = stdout, 2 = stderr) and to which file.
+struct Redirect {
+    int target_fd;
+    std::string file;
+};
+
+// Scans tokens for ">", "1>", "2>" and strips them (plus their filename) out of tokens.
+// Returns all redirects found, in the order they appeared. On syntax error, clears
+// tokens and returns whatever was parsed so far (caller should bail on empty tokens).
+std::vector<Redirect> extract_redirects(std::vector<std::string> &tokens) {
+    std::vector<Redirect> redirects;
+
+    for (size_t i = 0; i < tokens.size(); /* no auto-increment */) {
+        int target_fd = -1;
         if (tokens[i] == ">" || tokens[i] == "1>") {
-            if (i + 1 >= tokens.size()) {
-                std::cerr << "syntax error: expected filename after '" << tokens[i] << "'\n";
-                tokens.clear();
-                return false;
-            }
-            redirect_file = tokens[i + 1];
-            tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
-            return true;
+            target_fd = 1;
+        } else if (tokens[i] == "2>") {
+            target_fd = 2;
         }
+
+        if (target_fd == -1) {
+            ++i;
+            continue;
+        }
+
+        if (i + 1 >= tokens.size()) {
+            std::cerr << "syntax error: expected filename after '" << tokens[i] << "'\n";
+            tokens.clear();
+            redirects.clear();
+            return redirects;
+        }
+
+        redirects.push_back({target_fd, tokens[i + 1]});
+        tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
+        // don't increment i: the erase shifted the next token into position i
     }
-    return false;
+
+    return redirects;
 }
 
 void retrieve_path() {
-    std::cout<<std::filesystem::current_path().string()<<std::endl;
+    std::cout << std::filesystem::current_path().string() << std::endl;
 }
-void run_external(const std::vector<std::string> &tokens, const std::string &full_path, const std::string &redirect_file) {
+
+void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
+                   const std::vector<Redirect> &redirects) {
     pid_t pid = fork();
     if ( pid < 0 ) {
         perror("fork");
         return;
     }
     if (pid == 0) {
-        if (!redirect_file.empty()) {
-            int fd = open(redirect_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        for (const auto &r : redirects) {
+            int fd = open(r.file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd == -1) { perror("open"); exit(1); }
-            dup2(fd, 1);
+            dup2(fd, r.target_fd);
             close(fd);
         }
 
@@ -157,21 +181,35 @@ int main()
         if (tokens.empty())
             continue;   // empty input, just re-prompt
 
-        // NEW: split off '>' / '1>' + filename before dispatching
-        std::string redirect_file;
-        bool has_redirect = extract_redirect(tokens, redirect_file);
-        if (tokens.empty() && has_redirect)
-            continue;   // syntax error already printed inside extract_redirect
+        // split off '>' / '1>' / '2>' + filename before dispatching
+        std::vector<Redirect> redirects = extract_redirects(tokens);
+        if (tokens.empty())
+            continue;   // syntax error already printed inside extract_redirects, or truly empty
 
-        // NEW: if a builtin needs redirect, save fd 1, point it at the file
+        // if a builtin needs redirect(s), save the fds we're about to clobber, point them at files
         bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type");
-        int saved_stdout = -1, redirect_fd = -1;
-        if (builtin_cmd && has_redirect) {
-            redirect_fd = open(redirect_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (redirect_fd == -1) { perror("open"); continue; }
-            saved_stdout = dup(1);
-            dup2(redirect_fd, 1);
-            close(redirect_fd);
+        std::vector<std::pair<int,int>> saved_fds; // (fd_number, saved_dup)
+        if (builtin_cmd && !redirects.empty()) {
+            bool open_failed = false;
+            for (const auto &r : redirects) {
+                int redirect_fd = open(r.file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (redirect_fd == -1) {
+                    perror("open");
+                    open_failed = true;
+                    break;
+                }
+                saved_fds.push_back({r.target_fd, dup(r.target_fd)});
+                dup2(redirect_fd, r.target_fd);
+                close(redirect_fd);
+            }
+            if (open_failed) {
+                // restore anything we already redirected, then skip this command
+                for (auto &sf : saved_fds) {
+                    dup2(sf.second, sf.first);
+                    close(sf.second);
+                }
+                continue;
+            }
         }
 
         std::string &cmd = tokens[0];
@@ -185,22 +223,25 @@ int main()
             if (tokens.size() < 2)
             {
                 std::cerr << "cd: missing argument\n";
-                continue;
             }
-
-            std::string target = tokens[1];
-
-            if (target == "~")
-            {
-                const char *home = std::getenv("HOME");
-                if (home) target = home;
-                else { std::cerr << "cd: HOME not set\n"; continue; }
-            }
-
-            if (!std::filesystem::exists(target) || !std::filesystem::is_directory(target))
-                std::cout << "cd: " << target << ": No such file or directory\n";
             else
-                std::filesystem::current_path(target);
+            {
+                std::string target = tokens[1];
+
+                if (target == "~")
+                {
+                    const char *home = std::getenv("HOME");
+                    if (home) target = home;
+                    else { std::cerr << "cd: HOME not set\n"; target.clear(); }
+                }
+
+                if (!target.empty()) {
+                    if (!std::filesystem::exists(target) || !std::filesystem::is_directory(target))
+                        std::cout << "cd: " << target << ": No such file or directory\n";
+                    else
+                        std::filesystem::current_path(target);
+                }
+            }
         }
         else if (cmd == "echo")
         {
@@ -217,37 +258,42 @@ int main()
             if (tokens.size() < 2)
             {
                 std::cerr << "type: missing argument\n";
-                continue;
-            }
-            std::string s = tokens[1];
-
-            if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
-            {
-                std::cout << s << " is a shell builtin" << std::endl;
             }
             else
             {
-                std::string path = find_in_path(s);
-                if (!path.empty())
-                    std::cout << s << " is " << path << "\n";
+                std::string s = tokens[1];
+
+                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
+                {
+                    std::cout << s << " is a shell builtin" << std::endl;
+                }
                 else
-                    std::cout << s << ": not found" << std::endl;
+                {
+                    std::string path = find_in_path(s);
+                    if (!path.empty())
+                        std::cout << s << " is " << path << "\n";
+                    else
+                        std::cout << s << ": not found" << std::endl;
+                }
             }
         }
         else
         {
             std::string path = find_in_path(cmd);
             if (!path.empty())
-                run_external(tokens, path, redirect_file);
+                run_external(tokens, path, redirects);
             else
                 std::cout << input << ": command not found\n";
         }
 
-        // NEW: restore fd 1 if we redirected a builtin
-        if (builtin_cmd && has_redirect) {
+        // restore any redirected fds for builtins
+        if (builtin_cmd && !saved_fds.empty()) {
             std::cout.flush();
-            dup2(saved_stdout, 1);
-            close(saved_stdout);
+            std::cerr.flush();
+            for (auto &sf : saved_fds) {
+                dup2(sf.second, sf.first);
+                close(sf.second);
+            }
         }
     }
     return 0;
