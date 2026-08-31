@@ -11,6 +11,7 @@ struct Job {
     int job_number;
     pid_t pid;
     std::string command;
+    std::string status;
 };
 std::vector<Job> jobs_list;
 int next_job_number = 1;
@@ -180,7 +181,7 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
     }
     if (is_background) {
         int job_number = next_job_number++;
-        jobs_list.push_back({job_number, pid, job_command});
+        jobs_list.push_back({job_number, pid, job_command , "Running"});
         std::cout << "[" << job_number << "] " << pid << std::endl;
     } else {
         int status;
@@ -255,7 +256,16 @@ int main()
 
         std::string &cmd = tokens[0];
 
-        if (cmd == "jobs") continue;
+        if (cmd == "jobs") {
+            std::string current_status;
+            for (auto job : jobs_list) {
+                current_status = job.status;
+                if ( current_status.size() < 24 ) {
+                    current_status += std::string(24 - current_status.size(), ' ');
+                }
+                std::cout << "[" << job.job_number << "]+  " << current_status << job.command << " &" << "\n";
+            }
+        };
 
         if (cmd == "pwd")
         {
