@@ -7,6 +7,14 @@
 #include <fcntl.h>
 #include <filesystem>
 
+struct Job {
+    int job_number;
+    pid_t pid;
+    std::string command;
+};
+std::vector<Job> jobs_list;
+int next_job_number = 1;
+
 std::vector<std::string> parse_input(const std::string &input) {
     std::vector<std::string> tokens;
     std::string current;       // the token currently being built
@@ -143,12 +151,14 @@ void retrieve_path() {
 }
 
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
-                   const std::vector<Redirect> &redirects) {
+                   const std::vector<Redirect> &redirects, bool is_background,
+                   const std::string &job_command) {
     pid_t pid = fork();
     if ( pid < 0 ) {
         perror("fork");
         return;
     }
+
     if (pid == 0) {
         for (const auto &r : redirects) {
             int flags = O_WRONLY | O_CREAT | (r.append ? O_APPEND : O_TRUNC);
@@ -168,9 +178,16 @@ void run_external(const std::vector<std::string> &tokens, const std::string &ful
         std::cerr << tokens[0] << ": command not found\n";
         std::exit(1);
     }
-      int status;
-      waitpid(pid,&status,0);
+    if (is_background) {
+        int job_number = next_job_number++;
+        jobs_list.push_back({job_number, pid, job_command});
+        std::cout << "[" << job_number << "] " << pid << std::endl;
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
+    }
   }
+
 
 int main()
 {
@@ -191,11 +208,24 @@ int main()
         std::vector<std::string> tokens = parse_input(input);
         if (tokens.empty())
             continue;   // empty input, just re-prompt
+        // check for background job request
+
+        bool is_background = false ;
+        if (!tokens.empty() && tokens.back() == "&") {
+            is_background = true;
+            tokens.pop_back();
+        }
 
         // >' / '1>' / '2>' + filename before dispatching
         std::vector<Redirect> redirects = extract_redirects(tokens);
         if (tokens.empty())
             continue;   // syntax error already printed
+
+        std::string job_command;
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            if (i > 0) job_command += " ";
+            job_command += tokens[i];
+        }
 
         bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type" || tokens[0] == "jobs");
         std::vector<std::pair<int,int>> saved_fds; // (fd_number, saved_dup)
@@ -294,7 +324,7 @@ int main()
         {
             std::string path = find_in_path(cmd);
             if (!path.empty())
-                run_external(tokens, path, redirects);
+                run_external(tokens, path, redirects, is_background, job_command);
             else
                 std::cout << input << ": command not found\n";
         }
