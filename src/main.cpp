@@ -14,16 +14,15 @@ std::vector<std::string> parse_input(const std::string &input) {
     int saw_escape_char = 0;
     for (char c : input) {
         if (quote_type == '\0') {
-            if (escape_sequence && saw_escape_char == 1) {
+            if ( escape_sequence ) {
                 current+=c;
                 escape_sequence = false;
-                saw_escape_char = 0;
                 has_content = true;
                 continue;
             }
-            if ( c == '\\' && saw_escape_char == 0) {
+            if ( c == '\\' ) {
                 escape_sequence = true;
-                saw_escape_char = 1;
+
                 continue;
             }
             if (c == '\'' or c == '"') {
@@ -45,6 +44,16 @@ std::vector<std::string> parse_input(const std::string &input) {
             if (c == quote_type) {          // this is the matching closer
                 quote_type = '\0';
             } else {
+                if ( escape_sequence ) {
+                    current+=c;
+                    escape_sequence = false;
+                    has_content = true;
+                    continue;
+                }
+                if ( c == '\\' ) {
+                    escape_sequence = true;
+                    continue;
+                }
                 current += c;               // literal, even if it's a space or the other quote char
             }
         }
