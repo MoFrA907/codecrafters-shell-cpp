@@ -179,6 +179,8 @@ void print_job_line(const Job &job, char marker) {
 // before removal), then removes reaped jobs from jobs_list.
 void reap_jobs() {
     size_t n = jobs_list.size();
+
+    // First, mark finished jobs and print their "Done" status
     for (size_t i = 0; i < n; ++i) {
         Job &job = jobs_list[i];
         if (job.status != "Running")
@@ -192,6 +194,7 @@ void reap_jobs() {
         }
     }
 
+    // Second, erase finished jobs so jobs_list contains ONLY active jobs
     jobs_list.erase(
         std::remove_if(jobs_list.begin(), jobs_list.end(),
             [](const Job &j) { return j.status == "Done"; }),
@@ -201,7 +204,6 @@ void reap_jobs() {
         next_job_number = 1;
     }
 }
-
 void run_external(const std::vector<std::string> &tokens, const std::string &full_path,
                    const std::vector<Redirect> &redirects, bool is_background,
                    const std::string &job_command) {
@@ -310,12 +312,14 @@ int main()
 
         if (cmd == "jobs")
         {
+            // 1. Flush/reap finished jobs first
             reap_jobs();
 
-            size_t n = jobs_list.size();
-            for (size_t i = 0; i < n; ++i)
+            // 2. Print remaining active running jobs with correct indices
+            size_t active_count = jobs_list.size();
+            for (size_t i = 0; i < active_count; ++i)
             {
-                print_job_line(jobs_list[i], job_marker(i, n));
+                print_job_line(jobs_list[i], job_marker(i, active_count));
             }
         }
         else if (cmd == "pwd")
