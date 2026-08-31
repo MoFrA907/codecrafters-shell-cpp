@@ -40,20 +40,21 @@ std::vector<std::string> parse_input(const std::string &input) {
                 current += c;
                 has_content = true;
             }
-        } else {                            // currently INSIDE a quote
+        } else {
+            // currently INSIDE a quote
+            if ( escape_sequence ) {
+                current+=c;
+                escape_sequence = false;
+                has_content = true;
+                continue;
+            }
+            if ( c == '\\' ) {
+                escape_sequence = true;
+                continue;
+            }
             if (c == quote_type) {          // this is the matching closer
                 quote_type = '\0';
             } else {
-                if ( escape_sequence ) {
-                    current+=c;
-                    escape_sequence = false;
-                    has_content = true;
-                    continue;
-                }
-                if ( c == '\\' ) {
-                    escape_sequence = true;
-                    continue;
-                }
                 current += c;               // literal, even if it's a space or the other quote char
             }
         }
