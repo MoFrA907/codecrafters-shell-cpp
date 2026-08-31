@@ -192,12 +192,12 @@ int main()
         if (tokens.empty())
             continue;   // empty input, just re-prompt
 
-        // split'>' / '1>' / '2>' + filename before dispatching
+        // >' / '1>' / '2>' + filename before dispatching
         std::vector<Redirect> redirects = extract_redirects(tokens);
         if (tokens.empty())
             continue;   // syntax error already printed
 
-        bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type");
+        bool builtin_cmd = (tokens[0] == "pwd" || tokens[0] == "cd" || tokens[0] == "echo" || tokens[0] == "type" || tokens[0] == "jobs");
         std::vector<std::pair<int,int>> saved_fds; // (fd_number, saved_dup)
         if (builtin_cmd && !redirects.empty()) {
             bool open_failed = false;
@@ -274,7 +274,7 @@ int main()
             {
                 std::string s = tokens[1];
 
-                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd")
+                if (s == "echo" || s == "exit" || s == "type" || s == "pwd" || s == "cd" || s == "jobs")
                 {
                     std::cout << s << " is a shell builtin" << std::endl;
                 }
