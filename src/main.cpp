@@ -256,18 +256,26 @@ int main()
 
         std::string &cmd = tokens[0];
 
-        if (cmd == "jobs") {
-            std::string current_status;
-            for (auto job : jobs_list) {
-                current_status = job.status;
-                if ( current_status.size() < 24 ) {
-                    current_status += std::string(24 - current_status.size(), ' ');
-                }
-                std::cout << "[" << job.job_number << "]+  " << current_status << job.command << " &" << "\n";
-            }
-            continue;
-        };
+        if (cmd == "jobs")
+        {
+            size_t n = jobs_list.size();
+            for (size_t i = 0; i < n; ++i)
+            {
+                const auto &job = jobs_list[i];
 
+                char marker = ' ';
+                if (n >= 1 && i == n - 1) marker = '+';
+                else if (n >= 2 && i == n - 2) marker = '-';
+
+                std::string status_field = job.status;
+                if (status_field.size() < 24)
+                    status_field += std::string(24 - status_field.size(), ' ');
+
+                std::cout << "[" << job.job_number << "]" << marker << "  "
+                           << status_field
+                           << job.command << " &" << "\n";
+            }
+        }
         if (cmd == "pwd")
         {
             retrieve_path();
