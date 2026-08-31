@@ -10,8 +10,18 @@ std::vector<std::string> parse_input(const std::string &input) {
     std::string current;       // the token currently being built
     char quote_type = '\0';
     bool has_content = false;
+    bool escape_sequence = false;
     for (char c : input) {
-        if (quote_type == '\0') {          // NOT currently in a quote
+        if (quote_type == '\0') {
+            if (escape_sequence) {
+                current+=c;
+                escape_sequence = false;
+                continue;
+            }
+            if ( c == '\\' ) {
+                escape_sequence = true;
+                continue;
+            }
             if (c == '\'' or c == '"') {
                 quote_type = c;
                 has_content = true;
@@ -23,6 +33,7 @@ std::vector<std::string> parse_input(const std::string &input) {
                 }
                 // else: skip extra spaces
             } else {
+
                 current += c;
                 has_content = true;
             }
