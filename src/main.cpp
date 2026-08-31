@@ -11,15 +11,19 @@ std::vector<std::string> parse_input(const std::string &input) {
     char quote_type = '\0';
     bool has_content = false;
     bool escape_sequence = false;
+    int saw_escape_char = 0;
     for (char c : input) {
         if (quote_type == '\0') {
-            if (escape_sequence) {
+            if (escape_sequence && saw_escape_char == 1) {
                 current+=c;
                 escape_sequence = false;
+                saw_escape_char = 0;
+                has_content = true;
                 continue;
             }
-            if ( c == '\\' ) {
+            if ( c == '\\' && saw_escape_char == 0) {
                 escape_sequence = true;
+                saw_escape_char = 1;
                 continue;
             }
             if (c == '\'' or c == '"') {
