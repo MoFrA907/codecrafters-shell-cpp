@@ -258,6 +258,16 @@ int main()
 
         if (cmd == "jobs")
         {
+            // reap: check each job's PID without blocking
+            for (auto &job : jobs_list)
+            {
+                int status;
+                pid_t result = waitpid(job.pid, &status, WNOHANG);
+                if (result == job.pid && WIFEXITED(status)) {
+                    job.status = "Done";
+                }
+            }
+
             size_t n = jobs_list.size();
             for (size_t i = 0; i < n; ++i)
             {
@@ -275,9 +285,8 @@ int main()
                            << status_field
                            << job.command << " &" << "\n";
             }
-            continue;
         }
-        if (cmd == "pwd")
+        else if (cmd == "pwd")
         {
             retrieve_path();
         }
@@ -360,4 +369,3 @@ int main()
         }
     }
     return 0;
-}
